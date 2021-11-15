@@ -1,0 +1,192 @@
+#pragma once
+
+#include <experimental/coroutine>
+#include <optional>
+#include <variant>
+#include <string>
+
+using namespace std::string_literals;
+
+#include "helpers.hpp"
+
+template<typename T, bool start_immediately, bool enable_exceptions_propagation>
+struct single_task_promise_type;
+
+template<typename T = void, bool start_immediately = true, bool enable_exceptions_propagation = false>
+struct single_task {
+
+    /**
+     * The promise will be stored in the coroutine execution context along the variables,
+     * registers, instruction pointer, parameters, all of the function state (lambdas too).
+     */
+    using promise_type = single_task_promise_type<T, start_immediately, enable_exceptions_propagation>;
+
+public:
+    //operator std::experimental::coroutine_handle<promise_type>() const noexcept { return handle_; }
+
+    // A coroutine_handle<promise_type> converts to coroutine_handle<>
+    //operator std::experimental::coroutine_handle<>() const noexcept { return handle_; }
+
+private:
+    void rethrow_exceptions() noexcept(!enable_exceptions_propagation) {
+        if constexpr(!enable_exceptions_propagation) {
+            return;
+        } else {
+            if (!handle_) {
+                throw std::runtime_error("Called coroutine on empty/destroyed handle\n"s);
+            }
+            auto ptr = handle_.promise().get_exception_ptr();
+            if (ptr) {
+                destroy();
+                std::rethrow_exception(ptr);
+            }
+        }
+    }
+
+public:
+    void destroy() noexcept {
+        if (handle_) {
+            handle_.destroy();
+            handle_ = nullptr;
+        }
+    }
+
+    inline auto get() noexcept(!enable_exceptions_propagation) {
+        rethrow_exceptions();
+        if constexpr (std::is_void_v<T>) {
+            return handle_.done();
+        } else {
+            if (handle_.done()) {
+                return std::optional<T>(handle_.promise().get_value());
+            } else {
+                return std::optional<T>(std::nullopt);
+            }
+        }
+    }
+
+    inline auto operator()() noexcept(!enable_exceptions_propagation) {
+        rethrow_exceptions();
+        handle_.resume();
+        return get();
+    }
+
+public:
+    /**
+     * C++ boilerplate to disable copy assignement and copy constructor and leave just the move ones.
+     */
+    single_task() = default;
+
+    explicit single_task(std::experimental::coroutine_handle<promise_type> handle) noexcept: handle_(handle) {}
+
+    single_task(const single_task &) = delete;
+
+    single_task(single_task &&other) noexcept: handle_(other.handle_) { other.handle_ = nullptr; }
+
+    single_task &operator=(const single_task &) = delete;
+
+    constexpr inline single_task &operator=(single_task &&other) noexcept {
+        if (&other != this) {
+            handle_ = other.handle_;
+            other.handle_ = nullptr;
+        }
+        return *this;
+    }
+
+    ~single_task() noexcept {
+        destroy();
+    }
+
+
+private:
+    std::experimental::coroutine_handle<promise_type> handle_;
+
+};
+
+template<typename T, bool start_immediately, bool enable_exceptions_propagation>
+struct single_task_promise_type : value_holder<T, enable_exceptions_propagation> {
+    using single_task_t = single_task<T, start_immediately, enable_exceptions_propagation>;
+    using value_holder_t = value_holder<T, enable_exceptions_propagation>;
+
+public:
+    /* Called by the compiler to convert the promise type into the return object, for the caller. */
+    auto get_return_object() noexcept {
+        return single_task_t(std::experimental::coroutine_handle<single_task_promise_type>::from_promise(*this)); // Compiler can figure out the offset to the handle
+    }
+
+    /* Whether the coroutine suspends itself before it starts executing */
+    static auto initial_suspend() noexcept {
+        if constexpr(start_immediately)
+            return std::experimental::suspend_never{};
+        else
+            return std::experimental::suspend_always{};
+    }
+
+    /* Whether the coroutine suspends itself at the end before destruction. This is done to avoid the coroutine automatic destruction */
+    static auto final_suspend() noexcept { return std::experimental::suspend_always{}; }
+
+    /* When we return from the coroutine ; called from a co_return  */
+    template<typename U = T>
+    void return_value(U &&val) noexcept { value_holder_t::set_value(std::forward<U>(val)); }
+
+    void unhandled_exception() noexcept {
+        if constexpr (enable_exceptions_propagation) {
+            value_holder_t::set_exception(std::current_exception());
+        }
+    }
+
+};
+
+template<bool start_immediately, bool enable_exceptions_propagation>
+struct single_task_promise_type<void, start_immediately, enable_exceptions_propagation> : value_holder<void, enable_exceptions_propagation> {
+    using single_task_t = single_task<void, start_immediately, enable_exceptions_propagation>;
+    using value_holder_t = value_holder<void, enable_exceptions_propagation>;
+
+public:
+    /* Called by the compiler to convert the promise type into the return object, for the caller. */
+    auto get_return_object() noexcept {
+        return single_task_t(std::experimental::coroutine_handle<single_task_promise_type>::from_promise(*this)); // Compiler can figure out the offset to the handle
+    }
+
+    /* Whether the coroutine suspends itself before it starts executing */
+    static auto initial_suspend() noexcept {
+        if constexpr(start_immediately)
+            return std::experimental::suspend_never{};
+        else
+            return std::experimental::suspend_always{};
+    }
+
+    /* Whether the coroutine suspends itself at the end before destruction. This is done to avoid the coroutine automatic destruction */
+    static auto final_suspend() noexcept { return std::experimental::suspend_always{}; }
+
+    void unhandled_exception() noexcept {
+        if constexpr(enable_exceptions_propagation) {
+            value_holder_t::set_exception(std::current_exception());
+        }
+    }
+
+    /* We return nothing from the coroutine ; called from a co_return without argument or falling of the end of a coroutine */
+    static void return_void() noexcept {}
+
+};
+
+
+static constexpr void static_tests_single_task() {
+    static_assert(sizeof(single_task<int, false, false>) == sizeof(std::experimental::coroutine_handle<void>));
+    static_assert(sizeof(single_task<int, false, true>) == sizeof(std::experimental::coroutine_handle<void>));
+    static_assert(sizeof(single_task<int, true, false>) == sizeof(std::experimental::coroutine_handle<void>));
+    static_assert(sizeof(single_task<int, true, true>) == sizeof(std::experimental::coroutine_handle<void>));
+    static_assert(sizeof(single_task<void, false, false>) == sizeof(std::experimental::coroutine_handle<void>));
+    static_assert(sizeof(single_task<void, false, true>) == sizeof(std::experimental::coroutine_handle<void>));
+    static_assert(sizeof(single_task<void, true, false>) == sizeof(std::experimental::coroutine_handle<void>));
+    static_assert(sizeof(single_task<void, true, true>) == sizeof(std::experimental::coroutine_handle<void>));
+
+    static_assert(sizeof(single_task<void, false, false>::promise_type) == 1);
+    static_assert(sizeof(single_task<void, true, false>::promise_type) == 1);
+    static_assert(sizeof(single_task<int, false, false>::promise_type) == sizeof(int));
+    static_assert(sizeof(single_task<int, true, false>::promise_type) == sizeof(int));
+    static_assert(sizeof(single_task<void, false, true>::promise_type) == sizeof(std::exception_ptr));
+    static_assert(sizeof(single_task<void, true, true>::promise_type) == sizeof(std::exception_ptr));
+    static_assert(sizeof(single_task<int, false, true>::promise_type) == sizeof(std::variant<int, std::exception_ptr>));
+    static_assert(sizeof(single_task<int, true, true>::promise_type) == sizeof(std::variant<int, std::exception_ptr>));
+}
+
