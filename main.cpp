@@ -4,7 +4,7 @@
 #include <coro>
 
 template<typename T>
-generator<T, true> range(T begin, T end, T step = 1) {
+generator<T, false> range(T begin, T end, T step = 1) {
     for (T i = begin; i < end; i += step) {
         co_yield i; // == co_await p.yield_value(e);
         if (step == 0) throw std::runtime_error("Step set to 0 in range."s);
@@ -12,7 +12,7 @@ generator<T, true> range(T begin, T end, T step = 1) {
 }
 
 template<typename T>
-generator<T, false> linspace(T begin, T end, T num = 1) noexcept {
+generator<T, true> linspace(T begin, T end, T num = 1) noexcept {
     if (num == 0) {
         co_yield begin;
         co_return;
@@ -48,9 +48,9 @@ single_task<> counter2(std::string s) {
     // struct coro_context* ctxt  = new ...
     // return = ctxt->promise.get_return_object();
     // co_await ctxt->promise.initial_suspend();
-    throw std::runtime_error("c");
     for (unsigned i = 0;; ++i) {
         std::cout << s << i << std::endl;
+        co_await std::experimental::suspend_always{};
     }
 
     // co_await ctxt-> promise.final_suspend();
@@ -84,6 +84,5 @@ int main() {
         std::cout << "In main2 function\n";
         h(); // equivalent to h.resume(), work from other threads
     }
-
 
 }

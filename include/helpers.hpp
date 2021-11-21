@@ -1,4 +1,7 @@
+#pragma once
+
 #include <type_traits>
+#include <variant>
 
 struct empty_storage_struct {
 };
@@ -22,7 +25,6 @@ using conditional_type_t = typename conditional_type<true_type, false_type, b>::
 template<typename T, bool b>
 using optional_type_t = conditional_type_t<T, empty_storage_struct, b>;
 
-
 constexpr void check_type_helpers() {
     static_assert(std::is_same_v<conditional_type_t<int, float, true>, int>);
     static_assert(std::is_same_v<conditional_type_t<int, float, false>, float>);
@@ -35,16 +37,21 @@ template<typename T, bool enable_exceptions_propagation>
 struct value_holder {
 public:
     template<typename U = void>
-    std::enable_if_t<enable_exceptions_propagation, U> set_exception(const std::exception_ptr ptr) noexcept {
+    inline constexpr std::enable_if_t<enable_exceptions_propagation, U> set_exception(const std::exception_ptr &ptr) noexcept {
         return_value_ = ptr;
     }
 
     template<typename U = T>
-    void set_value(U &&val) noexcept {
+    inline constexpr void set_value(U &&val) noexcept {
         return_value_ = val;
     }
 
-    std::exception_ptr get_exception_ptr() noexcept {
+    template<typename U = T>
+    inline constexpr void set_value(const U &val) noexcept {
+        return_value_ = val;
+    }
+
+    inline std::exception_ptr get_exception_ptr() noexcept {
         if constexpr (enable_exceptions_propagation) {
             if (!std::holds_alternative<std::exception_ptr>(return_value_)) {
                 return nullptr;
@@ -57,7 +64,7 @@ public:
         }
     }
 
-    T const &get_value() noexcept {
+    constexpr T const &get_value() noexcept {
         if constexpr(enable_exceptions_propagation) {
             return std::get<T>(return_value_);
         } else {
@@ -73,15 +80,15 @@ private:
 template<>
 struct value_holder<void, true> {
 public:
-    void set_exception(const std::exception_ptr ptr) noexcept {
+    inline constexpr void set_exception(const std::exception_ptr &ptr) noexcept {
         return_value_ = ptr;
     }
 
-    std::exception_ptr get_exception_ptr() noexcept {
+    inline std::exception_ptr get_exception_ptr() noexcept {
         if (!return_value_) {
             return nullptr;
         }
-        auto ptr = return_value_;
+        const auto ptr = return_value_;
         return_value_ = nullptr;
         return ptr;
     }

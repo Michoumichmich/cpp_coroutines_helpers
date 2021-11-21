@@ -2,12 +2,11 @@
 
 #include <experimental/coroutine>
 #include <optional>
-#include <variant>
 #include <string>
 
 using namespace std::string_literals;
 
-#include "helpers.hpp"
+#include <helpers.hpp>
 
 template<typename T, bool start_immediately, bool enable_exceptions_propagation>
 struct single_task_promise_type;
@@ -76,11 +75,11 @@ public:
      */
     single_task() = default;
 
-    explicit single_task(std::experimental::coroutine_handle<promise_type> handle) noexcept: handle_(handle) {}
+    constexpr explicit single_task(std::experimental::coroutine_handle<promise_type> handle) noexcept: handle_(handle) {}
 
     single_task(const single_task &) = delete;
 
-    single_task(single_task &&other) noexcept: handle_(other.handle_) { other.handle_ = nullptr; }
+    constexpr single_task(single_task &&other) noexcept: handle_(other.handle_) { other.handle_ = nullptr; }
 
     single_task &operator=(const single_task &) = delete;
 
@@ -114,7 +113,7 @@ public:
     }
 
     /* Whether the coroutine suspends itself before it starts executing */
-    static auto initial_suspend() noexcept {
+    constexpr static auto initial_suspend() noexcept {
         if constexpr(start_immediately)
             return std::experimental::suspend_never{};
         else
@@ -122,13 +121,16 @@ public:
     }
 
     /* Whether the coroutine suspends itself at the end before destruction. This is done to avoid the coroutine automatic destruction */
-    static auto final_suspend() noexcept { return std::experimental::suspend_always{}; }
+    constexpr static auto final_suspend() noexcept { return std::experimental::suspend_always{}; }
 
     /* When we return from the coroutine ; called from a co_return  */
     template<typename U = T>
-    void return_value(U &&val) noexcept { value_holder_t::set_value(std::forward<U>(val)); }
+    constexpr void return_value(U &&val) noexcept { value_holder_t::set_value(std::forward<U>(val)); }
 
-    void unhandled_exception() noexcept {
+    template<typename U = T>
+    constexpr void return_value(const U &val) noexcept { value_holder_t::set_value(std::forward<U>(val)); }
+
+    constexpr void unhandled_exception() noexcept {
         if constexpr (enable_exceptions_propagation) {
             value_holder_t::set_exception(std::current_exception());
         }
@@ -148,7 +150,7 @@ public:
     }
 
     /* Whether the coroutine suspends itself before it starts executing */
-    static auto initial_suspend() noexcept {
+    constexpr static auto initial_suspend() noexcept {
         if constexpr(start_immediately)
             return std::experimental::suspend_never{};
         else
@@ -156,16 +158,16 @@ public:
     }
 
     /* Whether the coroutine suspends itself at the end before destruction. This is done to avoid the coroutine automatic destruction */
-    static auto final_suspend() noexcept { return std::experimental::suspend_always{}; }
+    constexpr static auto final_suspend() noexcept { return std::experimental::suspend_always{}; }
 
-    void unhandled_exception() noexcept {
+    constexpr void unhandled_exception() noexcept {
         if constexpr(enable_exceptions_propagation) {
             value_holder_t::set_exception(std::current_exception());
         }
     }
 
     /* We return nothing from the coroutine ; called from a co_return without argument or falling of the end of a coroutine */
-    static void return_void() noexcept {}
+    constexpr static void return_void() noexcept {}
 
 };
 

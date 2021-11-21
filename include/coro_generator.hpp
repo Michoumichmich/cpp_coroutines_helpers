@@ -1,10 +1,10 @@
 #pragma once
 
+#include <helpers.hpp>
+#include <experimental/coroutine>
 #include <string>
 
 using namespace std::string_literals;
-
-#include <experimental/coroutine>
 
 template<typename T, bool enable_exceptions_propagation = true>
 struct generator {
@@ -25,24 +25,30 @@ public:
         }
 
         /* Whether the coroutine suspends itself before it starts executing */
-        static auto initial_suspend() noexcept { return std::experimental::suspend_always{}; }
+        static constexpr auto initial_suspend() noexcept { return std::experimental::suspend_always{}; }
 
         /* Whether the coroutine suspends itself at the end before destruction. This is done to avoid the coroutine automatic destruction */
-        static auto final_suspend() noexcept { return std::experimental::suspend_always{}; }
+        static constexpr auto final_suspend() noexcept { return std::experimental::suspend_always{}; }
 
-        void unhandled_exception() noexcept {
+        constexpr void unhandled_exception() noexcept {
             if constexpr(enable_exceptions_propagation) {
                 value_holder_t::set_exception(std::current_exception());
             }
         }
 
         template<typename U = T>
-        auto yield_value(U &&val) {
+        constexpr auto yield_value(U &&val) noexcept {
             value_holder_t::set_value(std::forward<U>(val));
             return std::experimental::suspend_always{};
         }
 
-        void return_void() noexcept {}
+        template<typename U = T>
+        constexpr auto yield_value(const U &val) noexcept {
+            value_holder_t::set_value(std::forward<U>(val));
+            return std::experimental::suspend_always{};
+        }
+
+        constexpr void return_void() const noexcept {}
     };
 
     using promise_type = generator_promise_type;
@@ -51,14 +57,14 @@ public:
     struct iterator : std::iterator<std::input_iterator_tag, T> {
         iterator(std::experimental::coroutine_handle<generator_promise_type> handle) : it_handle_(handle) {}
 
-        iterator &operator++() noexcept(!enable_exceptions_propagation) {
+        inline iterator &operator++() noexcept(!enable_exceptions_propagation) {
             if (it_handle_)it_handle_.resume();
             rethrow_exceptions();
             if (it_handle_.done()) { it_handle_ = nullptr; }
             return *this;
         }
 
-        void rethrow_exceptions() noexcept(!enable_exceptions_propagation) {
+        inline void rethrow_exceptions() noexcept(!enable_exceptions_propagation) {
             if constexpr(!enable_exceptions_propagation) {
                 return;
             } else {
@@ -73,12 +79,12 @@ public:
             }
         }
 
-        T const &operator*() noexcept(!enable_exceptions_propagation) {
+        inline T const &operator*() noexcept(!enable_exceptions_propagation) {
             rethrow_exceptions();
             return it_handle_.promise().get_value();
         }
 
-        bool operator!=(const iterator other) noexcept {
+        constexpr bool operator!=(const iterator &other) noexcept {
             return it_handle_ != other.it_handle_;
         }
 
