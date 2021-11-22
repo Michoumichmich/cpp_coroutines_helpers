@@ -1,10 +1,10 @@
 #include <iostream>
 #include <numeric>
-
+#include <cassert>
 #include <coro>
 
 template<typename T>
-generator<T, false> range(T begin, T end, T step = 1) {
+generator<T, true> range(T begin, T end, T step = 1) {
     for (T i = begin; i < end; i += step) {
         co_yield i; // == co_await p.yield_value(e);
         if (step == 0) throw std::runtime_error("Step set to 0 in range."s);
