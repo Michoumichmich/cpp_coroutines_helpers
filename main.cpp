@@ -5,9 +5,9 @@
 
 template<typename T>
 generator<T, true> range(T begin, T end, T step = 1) {
+    if (step == 0) throw std::runtime_error("Step set to 0 in range."s);
     for (T i = begin; i < end; i += step) {
         co_yield i; // == co_await p.yield_value(e);
-        if (step == 0) throw std::runtime_error("Step set to 0 in range."s);
     }
 }
 
@@ -38,7 +38,7 @@ void check_range_throw() {
 
 single_task<int, false> slow_function() {
     for (int i = 0; i < 3; ++i) {
-        co_await std::experimental::suspend_always{};
+        co_await std::suspend_always{};
     }
     co_return 42;
 }
@@ -50,7 +50,7 @@ single_task<> counter2(std::string s) {
     // co_await ctxt->promise.initial_suspend();
     for (unsigned i = 0;; ++i) {
         std::cout << s << i << std::endl;
-        co_await std::experimental::suspend_always{};
+        co_await std::suspend_always{};
     }
 
     // co_await ctxt-> promise.final_suspend();

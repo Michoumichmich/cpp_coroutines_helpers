@@ -1,6 +1,6 @@
 #pragma once
 
-#include <experimental/coroutine>
+#include <coroutine>
 #include <optional>
 #include <string>
 
@@ -75,7 +75,7 @@ public:
      */
     single_task() = default;
 
-    constexpr explicit single_task(std::experimental::coroutine_handle<promise_type> handle) noexcept: handle_(handle) {}
+    constexpr explicit single_task(std::coroutine_handle<promise_type> handle) noexcept: handle_(handle) {}
 
     single_task(const single_task &) = delete;
 
@@ -97,8 +97,7 @@ public:
 
 
 private:
-    std::experimental::coroutine_handle<promise_type> handle_;
-
+    std::coroutine_handle<promise_type> handle_;
 };
 
 template<typename T, bool start_immediately, bool enable_exceptions_propagation>
@@ -109,19 +108,19 @@ struct single_task_promise_type : value_holder<T, enable_exceptions_propagation>
 public:
     /* Called by the compiler to convert the promise type into the return object, for the caller. */
     auto get_return_object() noexcept {
-        return single_task_t(std::experimental::coroutine_handle<single_task_promise_type>::from_promise(*this)); // Compiler can figure out the offset to the handle
+        return single_task_t(std::coroutine_handle<single_task_promise_type>::from_promise(*this)); // Compiler can figure out the offset to the handle
     }
 
     /* Whether the coroutine suspends itself before it starts executing */
     constexpr static auto initial_suspend() noexcept {
         if constexpr(start_immediately)
-            return std::experimental::suspend_never{};
+            return std::suspend_never{};
         else
-            return std::experimental::suspend_always{};
+            return std::suspend_always{};
     }
 
     /* Whether the coroutine suspends itself at the end before destruction. This is done to avoid the coroutine automatic destruction */
-    constexpr static auto final_suspend() noexcept { return std::experimental::suspend_always{}; }
+    constexpr static auto final_suspend() noexcept { return std::suspend_always{}; }
 
     /* When we return from the coroutine ; called from a co_return  */
     template<typename U = T>
@@ -146,19 +145,19 @@ struct single_task_promise_type<void, start_immediately, enable_exceptions_propa
 public:
     /* Called by the compiler to convert the promise type into the return object, for the caller. */
     auto get_return_object() noexcept {
-        return single_task_t(std::experimental::coroutine_handle<single_task_promise_type>::from_promise(*this)); // Compiler can figure out the offset to the handle
+        return single_task_t(std::coroutine_handle<single_task_promise_type>::from_promise(*this)); // Compiler can figure out the offset to the handle
     }
 
     /* Whether the coroutine suspends itself before it starts executing */
     constexpr static auto initial_suspend() noexcept {
         if constexpr(start_immediately)
-            return std::experimental::suspend_never{};
+            return std::suspend_never{};
         else
-            return std::experimental::suspend_always{};
+            return std::suspend_always{};
     }
 
     /* Whether the coroutine suspends itself at the end before destruction. This is done to avoid the coroutine automatic destruction */
-    constexpr static auto final_suspend() noexcept { return std::experimental::suspend_always{}; }
+    constexpr static auto final_suspend() noexcept { return std::suspend_always{}; }
 
     constexpr void unhandled_exception() noexcept {
         if constexpr(enable_exceptions_propagation) {
@@ -173,14 +172,14 @@ public:
 
 
 static constexpr void static_tests_single_task() {
-    static_assert(sizeof(single_task<int, false, false>) == sizeof(std::experimental::coroutine_handle<void>));
-    static_assert(sizeof(single_task<int, false, true>) == sizeof(std::experimental::coroutine_handle<void>));
-    static_assert(sizeof(single_task<int, true, false>) == sizeof(std::experimental::coroutine_handle<void>));
-    static_assert(sizeof(single_task<int, true, true>) == sizeof(std::experimental::coroutine_handle<void>));
-    static_assert(sizeof(single_task<void, false, false>) == sizeof(std::experimental::coroutine_handle<void>));
-    static_assert(sizeof(single_task<void, false, true>) == sizeof(std::experimental::coroutine_handle<void>));
-    static_assert(sizeof(single_task<void, true, false>) == sizeof(std::experimental::coroutine_handle<void>));
-    static_assert(sizeof(single_task<void, true, true>) == sizeof(std::experimental::coroutine_handle<void>));
+    static_assert(sizeof(single_task<int, false, false>) == sizeof(std::coroutine_handle<void>));
+    static_assert(sizeof(single_task<int, false, true>) == sizeof(std::coroutine_handle<void>));
+    static_assert(sizeof(single_task<int, true, false>) == sizeof(std::coroutine_handle<void>));
+    static_assert(sizeof(single_task<int, true, true>) == sizeof(std::coroutine_handle<void>));
+    static_assert(sizeof(single_task<void, false, false>) == sizeof(std::coroutine_handle<void>));
+    static_assert(sizeof(single_task<void, false, true>) == sizeof(std::coroutine_handle<void>));
+    static_assert(sizeof(single_task<void, true, false>) == sizeof(std::coroutine_handle<void>));
+    static_assert(sizeof(single_task<void, true, true>) == sizeof(std::coroutine_handle<void>));
 
     static_assert(sizeof(single_task<void, false, false>::promise_type) == 1);
     static_assert(sizeof(single_task<void, true, false>::promise_type) == 1);

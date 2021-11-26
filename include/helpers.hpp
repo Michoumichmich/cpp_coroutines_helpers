@@ -2,6 +2,7 @@
 
 #include <type_traits>
 #include <variant>
+#include <exception>
 
 struct empty_storage_struct {
 };
@@ -37,7 +38,7 @@ template<typename T, bool enable_exceptions_propagation>
 struct value_holder {
 public:
     template<typename U = void>
-    inline constexpr std::enable_if_t<enable_exceptions_propagation, U> set_exception(const std::exception_ptr &ptr) noexcept {
+    inline std::enable_if_t<enable_exceptions_propagation, U> set_exception(const std::exception_ptr &ptr) noexcept {
         return_value_ = ptr;
     }
 
