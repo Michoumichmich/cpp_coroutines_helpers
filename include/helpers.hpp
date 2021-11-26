@@ -43,29 +43,27 @@ public:
     }
 
     template<typename U = T>
-    inline constexpr void set_value(U &&val) noexcept {
-        return_value_ = val;
+    inline constexpr void set_value(U &&val) {
+        return_value_ = std::forward<U>(val);
     }
 
     template<typename U = T>
-    inline constexpr void set_value(const U &val) noexcept {
+    inline constexpr void set_value(const U &val) {
         return_value_ = val;
     }
 
-    inline std::exception_ptr get_exception_ptr() noexcept {
+    [[nodiscard]] inline std::exception_ptr get_exception_ptr() const noexcept {
         if constexpr (enable_exceptions_propagation) {
             if (!std::holds_alternative<std::exception_ptr>(return_value_)) {
                 return nullptr;
             }
-            auto ptr = std::get<std::exception_ptr>(return_value_);
-            return_value_ = std::exception_ptr{};
-            return ptr;
+            return std::get<std::exception_ptr>(return_value_);
         } else {
             return nullptr;
         }
     }
 
-    constexpr T const &get_value() noexcept {
+    constexpr T const &get_value() const noexcept {
         if constexpr(enable_exceptions_propagation) {
             return std::get<T>(return_value_);
         } else {
@@ -81,21 +79,16 @@ private:
 template<>
 struct value_holder<void, true> {
 public:
-    inline constexpr void set_exception(const std::exception_ptr &ptr) noexcept {
-        return_value_ = ptr;
+    inline void set_exception(const std::exception_ptr &ptr) noexcept {
+        exception_ptr = ptr;
     }
 
-    inline std::exception_ptr get_exception_ptr() noexcept {
-        if (!return_value_) {
-            return nullptr;
-        }
-        const auto ptr = return_value_;
-        return_value_ = nullptr;
-        return ptr;
+    [[nodiscard]] inline std::exception_ptr get_exception_ptr() const noexcept {
+        return exception_ptr;
     }
 
 private:
-    std::exception_ptr return_value_;
+    std::exception_ptr exception_ptr;
 };
 
 /**

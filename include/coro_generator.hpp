@@ -56,14 +56,14 @@ public:
 
 public:
     struct iterator : std::iterator<std::input_iterator_tag, T> {
-        iterator(std::coroutine_handle<generator_promise_type> handle) : it_handle_(handle) {}
+        iterator(std::coroutine_handle<generator_promise_type> handle = nullptr) : it_handle_(handle) {}
 
         //using iterator_concept = std::input_iterator_tag;
         //using difference_type = ptrdiff_t;
         //using value_type = std::remove_cvref_t<T>;
 
         inline iterator &operator++() noexcept(!enable_exceptions_propagation) {
-            if (it_handle_)it_handle_.resume();
+            if (it_handle_ && !it_handle_.done())it_handle_.resume();
             rethrow_exceptions();
             if (it_handle_.done()) { it_handle_ = nullptr; }
             return *this;
@@ -76,8 +76,7 @@ public:
                 if (!it_handle_) {
                     throw std::runtime_error("Called coroutine on empty/destroyed handle"s);
                 }
-                auto ptr = it_handle_.promise().get_exception_ptr();
-                if (ptr) {
+                if (auto ptr = it_handle_.promise().get_exception_ptr()) {
                     it_handle_ = nullptr;
                     std::rethrow_exception(ptr);
                 }
@@ -89,7 +88,7 @@ public:
             return it_handle_.promise().get_value();
         }
 
-        constexpr bool operator!=(const iterator &other) noexcept {
+        constexpr bool operator!=(const iterator &other) const noexcept {
             return it_handle_ != other.it_handle_;
         }
 
@@ -102,20 +101,24 @@ public:
         if (handle_) {
             handle_.resume();
             rethrow_exceptions();
-            if (handle_.done()) {
+            if (done()) {
                 return end();
             }
         }
         return iterator(handle_);
     }
 
-    iterator end() noexcept { return iterator(nullptr); }
+    iterator end() const noexcept { return {}; }
 
     void destroy() noexcept {
         if (handle_) {
             handle_.destroy();
             handle_ = nullptr;
         }
+    }
+
+    bool done() const noexcept {
+        return handle_.done();
     }
 
 private:
@@ -135,15 +138,32 @@ private:
     }
 
 public:
-    T const &get() noexcept(!enable_exceptions_propagation) {
-        rethrow_exceptions();
-        return handle_.promise().get_value();
+    std::optional<T> get() noexcept(!enable_exceptions_propagation) {
+        if constexpr (enable_exceptions_propagation) {
+            rethrow_exceptions();
+        }
+        if (handle_ && !handle_.done()) {
+            return handle_.promise().get_value();
+        } else {
+            return std::nullopt;
+        }
+
     }
 
-    T const &operator()() noexcept(!enable_exceptions_propagation) {
-        rethrow_exceptions();
-        handle_.resume();
-        return get();
+    std::optional<T> resume() noexcept(!enable_exceptions_propagation) {
+        if constexpr (enable_exceptions_propagation) {
+            rethrow_exceptions();
+        }
+        if (handle_ && !handle_.done()) {
+            handle_.resume();
+            return get();
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    auto operator()() noexcept(!enable_exceptions_propagation) {
+        return resume();
     }
 
 public:
@@ -159,14 +179,13 @@ public:
 
     generator(const generator &) = delete;
 
-    generator(generator &&other) noexcept: handle_(other.handle_) { other.handle_ = nullptr; }
+    generator(generator &&other) noexcept: handle_(std::exchange(other.handle_, nullptr)) {}
 
     generator &operator=(const generator &) = delete;
 
     generator &operator=(generator &&other) noexcept {
         if (&other != this) {
-            handle_ = other.handle_;
-            other.handle_ = nullptr;
+            handle_ = std::exchange(other.handle_, nullptr);
         }
         return *this;
     }

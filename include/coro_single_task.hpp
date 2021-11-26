@@ -3,6 +3,7 @@
 #include <coroutine>
 #include <optional>
 #include <string>
+#include <stdexcept>
 
 using namespace std::string_literals;
 
@@ -21,10 +22,9 @@ struct single_task {
     using promise_type = single_task_promise_type<T, start_immediately, enable_exceptions_propagation>;
 
 public:
-    //operator std::experimental::coroutine_handle<promise_type>() const noexcept { return handle_; }
+    operator std::coroutine_handle<promise_type>() const noexcept { return handle_; }
 
-    // A coroutine_handle<promise_type> converts to coroutine_handle<>
-    //operator std::experimental::coroutine_handle<>() const noexcept { return handle_; }
+    operator std::coroutine_handle<>() const noexcept { return handle_; }
 
 private:
     void rethrow_exceptions() noexcept(!enable_exceptions_propagation) {
@@ -32,10 +32,9 @@ private:
             return;
         } else {
             if (!handle_) {
-                throw std::runtime_error("Called coroutine on empty/destroyed handle\n"s);
+                throw std::runtime_error("Called coroutine on empty/destroyed handle"s);
             }
-            auto ptr = handle_.promise().get_exception_ptr();
-            if (ptr) {
+            if (auto ptr = handle_.promise().get_exception_ptr()) {
                 destroy();
                 std::rethrow_exception(ptr);
             }
@@ -51,11 +50,13 @@ public:
     }
 
     inline auto get() noexcept(!enable_exceptions_propagation) {
-        rethrow_exceptions();
+        if constexpr(enable_exceptions_propagation) {
+            rethrow_exceptions();
+        }
         if constexpr (std::is_void_v<T>) {
             return handle_.done();
         } else {
-            if (handle_.done()) {
+            if (handle_ && handle_.done()) {
                 return std::optional<T>(handle_.promise().get_value());
             } else {
                 return std::optional<T>(std::nullopt);
@@ -63,10 +64,18 @@ public:
         }
     }
 
-    inline auto operator()() noexcept(!enable_exceptions_propagation) {
-        rethrow_exceptions();
-        handle_.resume();
+    inline auto resume() noexcept(!enable_exceptions_propagation) {
+        if constexpr(enable_exceptions_propagation) {
+            rethrow_exceptions();
+        }
+        if (handle_ && !handle_.done()) {
+            handle_.resume();
+        }
         return get();
+    }
+
+    inline auto operator()() noexcept(!enable_exceptions_propagation) {
+        return resume();
     }
 
 public:
@@ -124,10 +133,10 @@ public:
 
     /* When we return from the coroutine ; called from a co_return  */
     template<typename U = T>
-    constexpr void return_value(U &&val) noexcept { value_holder_t::set_value(std::forward<U>(val)); }
+    constexpr void return_value(U &&val) { value_holder_t::set_value(std::forward<U>(val)); }
 
     template<typename U = T>
-    constexpr void return_value(const U &val) noexcept { value_holder_t::set_value(std::forward<U>(val)); }
+    constexpr void return_value(const U &val) { value_holder_t::set_value(std::forward<U>(val)); }
 
     constexpr void unhandled_exception() noexcept {
         if constexpr (enable_exceptions_propagation) {
