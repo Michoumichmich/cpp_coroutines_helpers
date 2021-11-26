@@ -1,0 +1,2 @@
+add_executable(benchmark_sieve benchmarks/random_sieves.cpp)
+target_link_libraries(benchmark_sieve PRIVATE benchmark::benchmark)
