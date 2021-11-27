@@ -64,22 +64,20 @@ public:
 
         inline iterator &operator++() noexcept(!enable_exceptions_propagation) {
             if (it_handle_ && !it_handle_.done())it_handle_.resume();
-            rethrow_exceptions();
+            if constexpr(enable_exceptions_propagation) {
+                rethrow_exceptions();
+            }
             if (it_handle_.done()) { it_handle_ = nullptr; }
             return *this;
         }
 
-        inline void rethrow_exceptions() noexcept(!enable_exceptions_propagation) {
-            if constexpr(!enable_exceptions_propagation) {
-                return;
-            } else {
-                if (!it_handle_) {
-                    throw std::runtime_error("Called coroutine on empty/destroyed handle"s);
-                }
-                if (auto ptr = it_handle_.promise().get_exception_ptr()) {
-                    it_handle_ = nullptr;
-                    std::rethrow_exception(ptr);
-                }
+        inline void rethrow_exceptions() noexcept(!enable_exceptions_propagation) requires(enable_exceptions_propagation)  {
+            if (!it_handle_) {
+                throw std::runtime_error("Called coroutine on empty/destroyed handle"s);
+            }
+            if (auto ptr = it_handle_.promise().get_exception_ptr()) {
+                it_handle_ = nullptr;
+                std::rethrow_exception(ptr);
             }
         }
 
@@ -122,18 +120,13 @@ public:
     }
 
 private:
-    void rethrow_exceptions() noexcept(!enable_exceptions_propagation) {
-        if constexpr(!enable_exceptions_propagation) {
-            return;
-        } else {
-            if (!handle_) {
-                throw std::runtime_error("Called coroutine on empty/destroyed handle"s);
-            }
-            auto ptr = handle_.promise().get_exception_ptr();
-            if (ptr) {
-                destroy();
-                std::rethrow_exception(ptr);
-            }
+    void rethrow_exceptions() requires(enable_exceptions_propagation){
+        if (!handle_) {
+            throw std::runtime_error("Called coroutine on empty/destroyed handle"s);
+        }
+        if (auto ptr = handle_.promise().get_exception_ptr()) {
+            destroy();
+            std::rethrow_exception(ptr);
         }
     }
 

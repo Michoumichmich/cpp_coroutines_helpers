@@ -1,11 +1,11 @@
-#include<benchmark/benchmark.h>
+#include <benchmark/benchmark.h>
 
-#include<coro>
-#include<array>
-#include<vector>
-#include<random>
+#include <coro>
+#include <array>
+#include <vector>
+#include <random>
 
-constexpr size_t steps = 20000;
+constexpr size_t steps = 100'000;
 constexpr size_t worker_count = 10;
 
 

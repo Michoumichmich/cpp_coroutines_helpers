@@ -37,8 +37,7 @@ constexpr void check_type_helpers() {
 template<typename T, bool enable_exceptions_propagation>
 struct value_holder {
 public:
-    template<typename U = void>
-    inline std::enable_if_t<enable_exceptions_propagation, U> set_exception(const std::exception_ptr &ptr) noexcept {
+    void set_exception(const std::exception_ptr &ptr) noexcept requires(enable_exceptions_propagation) {
         return_value_ = ptr;
     }
 

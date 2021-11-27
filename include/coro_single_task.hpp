@@ -27,17 +27,13 @@ public:
     operator std::coroutine_handle<>() const noexcept { return handle_; }
 
 private:
-    void rethrow_exceptions() noexcept(!enable_exceptions_propagation) {
-        if constexpr(!enable_exceptions_propagation) {
-            return;
-        } else {
-            if (!handle_) {
-                throw std::runtime_error("Called coroutine on empty/destroyed handle"s);
-            }
-            if (auto ptr = handle_.promise().get_exception_ptr()) {
-                destroy();
-                std::rethrow_exception(ptr);
-            }
+    void rethrow_exceptions() requires(enable_exceptions_propagation) {
+        if (!handle_) {
+            throw std::runtime_error("Called coroutine on empty/destroyed handle"s);
+        }
+        if (auto ptr = handle_.promise().get_exception_ptr()) {
+            destroy();
+            std::rethrow_exception(ptr);
         }
     }
 
@@ -133,10 +129,10 @@ public:
 
     /* When we return from the coroutine ; called from a co_return  */
     template<typename U = T>
-    constexpr void return_value(U &&val) { value_holder_t::set_value(std::forward<U>(val)); }
+    constexpr void return_value(U &&val) requires (!std::is_void_v<T>) { value_holder_t::set_value(std::forward<U>(val)); }
 
     template<typename U = T>
-    constexpr void return_value(const U &val) { value_holder_t::set_value(std::forward<U>(val)); }
+    constexpr void return_value(const U &val) requires (!std::is_void_v<T>) { value_holder_t::set_value(std::forward<U>(val)); }
 
     constexpr void unhandled_exception() noexcept {
         if constexpr (enable_exceptions_propagation) {
@@ -175,7 +171,7 @@ public:
     }
 
     /* We return nothing from the coroutine ; called from a co_return without argument or falling of the end of a coroutine */
-    constexpr static void return_void() noexcept {}
+    constexpr static void return_void() noexcept requires(std::is_void_v<void>) {}
 
 };
 
