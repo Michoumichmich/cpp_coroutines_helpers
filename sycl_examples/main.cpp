@@ -1,3 +1,11 @@
+/**
+ * @author Michel Migdal (@mgdl.fr)
+ * 
+ * Doing more work in parallel on a single device/several devices with nice semantics. 
+ * Otherwise you would have to use vectors of states and sycl::buffer or sycl::events + states + USM. 
+ * Demo using hipSYCL: https://github.com/Michoumichmich/hipSYCL/commit/5cf4359b1abc9cf48ac37fd2f90c1d91a65e1a89
+ */
+
 #include <iostream>
 #include <deque>
 #include <coro>
@@ -16,11 +24,11 @@ using sycl_pipeline = std::deque<sycl_task<T>>;
 template<typename T>
 auto advance_pipeline(sycl_pipeline<T> &work_pipeline) -> std::optional<T> {
     for (auto& item : work_pipeline) {
-        item.resume();
+        item.resume(); /* Everyone moves forward */
     }
     /* Each call to resume will result in a wait on the event that was in the co_await */
     if (auto result = work_pipeline.front().get()) {
-        work_pipeline.pop_front();
+        work_pipeline.pop_front(); /* Returning the first ready result */
         return result;
     }
     return {};
