@@ -54,8 +54,11 @@ auto sycl_task_flow_example(T in, sycl::queue q) -> sycl_task<T> {
 
 
 int main() {
+    /* Something where we will store the coroutines */ 
     auto work_pipeline = sycl_pipeline<unsigned>{};
-    for (unsigned i = 0; i < 20; ++i) {
+
+    /* Launching 20 jobs/streams */
+    for (auto i : range(0U, 20U)) {
         work_pipeline.emplace_back(sycl_task_flow_example(i, sycl::queue{}));
         if (auto result = advance_pipeline(work_pipeline)) {
             std::cout << "Result: " << *result << ", pipeline depth" << work_pipeline.size() << std::endl; /* Process the result, some heavy computation */
@@ -64,7 +67,9 @@ int main() {
 
     /* Flushing remaining work */
     while (!work_pipeline.empty()) {
-        advance_pipeline(work_pipeline);
+        if (auto result = advance_pipeline(work_pipeline)) {
+            std::cout << "Result: " << *result << ", pipeline depth" << work_pipeline.size() << std::endl; /* Process the result, some heavy computation */
+        }
     }
 }
 
